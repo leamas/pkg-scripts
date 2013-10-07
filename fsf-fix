@@ -1,0 +1,26 @@
+#!/bin/bash
+
+function usage()
+{
+    cat << EOF
+Patch old addresses to Free Software Foundation to actual ones.
+
+Usage: $(basename $0) <file> [files...]
+
+EOF
+}
+
+if [[ -z "$*" || "$1" = '-h' || "$1" = '--help' ]]; then
+    usage
+    [  -z "$*" ] && exit 1
+    exit 0
+fi
+
+for f in "$@"; do
+   sed -i  -e 's/59 Temple Place.*USA/51 Franklin Street, Fifth Floor, Boston, MA  02110-1301 USA/' \
+           -e 's/675 Mass Ave.*USA/51 Franklin Street, Fifth Floor, Boston, MA  02110-1301 USA/'    \
+           -e 's/59 Temple Place[ ,-]*Suite 330/51 Franklin Street, Fifth Floor/'                   \
+           -e 's/MA[ ]*02111-1307/MA 02110-1301/'                                                   \
+            $f
+done
+

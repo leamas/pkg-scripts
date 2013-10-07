@@ -1,0 +1,167 @@
+#!/bin/bash
+
+function usage()
+{
+    cat << EOF
+Sync spec file using git data. By default updates any '%global commit'
+to match HEAD and last line in changelog to match today's date and short
+commit from HEAD. Print resulting file on stdout.
+
+Usage:
+    $(basename $0) [options] specfile
+
+    Options:
+        -g:   Only substitute %global commmit line.
+        -c <comment>:
+              Add comment to changelog, defaults to '- rebuilt.'.
+        -d <date>:
+              Date to use in changelog instead of today's date.
+        -n:   Create new changelog entry and  bump release instead
+              of patching last one.
+        -v:   Update Version: tag from first found tag matching HEAD.
+        -i:   Update spec file in place, don't print on stdout.
+EOF
+}
+
+function update_spec()
+{
+    local stdout=$1
+    local shortcommit=$( git rev-parse --short HEAD)
+    sed -ri -e '/%changelog/,/^$/ s/\*.*201[0-9]/* '"${OPTION_ARGS['d']}/" \
+            -e '/%changelog/,/^$/ s/[.][0-9a-f]{7,8}/.'"$shortcommit/" \
+        $stdout
+}
+
+
+
+function add_comment()
+{
+    local file=$1; shift
+    local comment="$*"
+    local tmpfile=$(mktemp)
+    awk   -v comment="$comment" \
+          'BEGIN         { look_for_next = 0
+                           new_comment = comment
+                         }
+          /%changelog/   { look_for_next = 1}
+          /^$/           { if (look_for_next == 1){
+                               printf "- %s\n", new_comment
+                               look_for_next = 0
+                           }
+                         }
+
+          END            { if (look_for_next == 1)
+                               printf "- %s\n", new_comment
+                         }
+                         { print }' \
+             < $file >$tmpfile && cp $tmpfile $file && rm $tmpfile
+}
+
+
+function add_changelog_entry()
+{
+    local file="$1"; shift
+    local release=$( rpmspec --srpm -q --qf "%{release}" $file )
+    local rel_tag=$( echo $release | sed -r 's/([0-9]+)[.].*/\1/' )
+    release="$((rel_tag + 1)).$( git rev-parse --short HEAD )"
+
+    local version=$( rpmspec --srpm -q --qf "%{version}" $file )
+    local git_user=$( git config 'user.name' )  || {
+    echo "git config user.name not set, aborting" >&2
+    exit 2
+    }
+    local git_email=$( git config 'user.email' )  || {
+    echo "git config user.email not set, aborting" >&2
+    exit 2
+    }
+    local entry="${OPTION_ARGS['d']} $git_user <$git_email>"
+    entry="$entry - $version-$release"
+    local tmpfile=$( mktemp )
+    awk -v entry="$entry" \
+        '/%changelog/ { print
+                        printf "* %s\n\n",entry
+                        next
+                      }
+                      { print }' \
+        < $file >$tmpfile && cp  $tmpfile $file && rm $tmpfile
+}
+
+
+function fix_version()
+{
+    local file=$1; shift
+    local tag=$( git tag --points-at HEAD )
+    if [[ "$?" -ne 0 || -z "$tag" ]]; then
+        echo "No tag points to HEAD, aborting" >&2
+        exit 1
+    fi
+    sed -ri '/^Version:/s/[^:^ ]+$/'"$tag/I" $file
+}
+
+
+if [[ "$1" = '-h' || "$1" = '--help' ]]; then usage; exit 0; fi
+
+declare -A OPTIONS OPTION_ARGS
+for opt in g i n v; do OPTIONS["$opt"]=''; done
+OPTION_ARGS['d']=$( LC_TIME=C date +'%a %b %d %Y' )
+OPTION_ARGS['c']='Rebuilt.'
+
+while getopts 'c:d:ghinv' opt; do
+    case "$opt" in
+        'c'|'d'|'g'|'i'|'n'|'v')
+                      OPTIONS["$opt"]=1
+                      OPTION_ARGS["$opt"]="$OPTARG"
+                      ;;
+        'h')          usage; exit 0
+                      ;;
+        *)            usage; exit 1
+                      ;;
+    esac
+done
+shift $((OPTIND - 1))
+
+if [ $# -ne 1 ]; then
+    usage
+    exit 1
+fi
+
+if [ ! -r "$1" ]; then
+    echo "Cannot open $1 for reading, aborting" >&2
+    exit 1
+fi
+
+if [ -n "$(git status --short -uno)" ]; then
+    echo "There are uncommitted changes, aborting" >&2
+    exit 1
+fi
+
+commit=$( git rev-parse HEAD )
+
+stdout=$( mktemp )
+cp $1 $stdout
+
+sed -ri '/%global.*commit/s/[0-9a-f]{40}/'"$commit/" $stdout
+[ ${OPTIONS['g']} ] && exit 0
+
+if [ ${OPTIONS['n']} ]; then
+    add_changelog_entry $stdout
+    OPTIONS['c']=1
+else
+    update_spec $stdout
+fi
+
+if [ "${OPTIONS['c']}" ]; then
+    add_comment $stdout "${OPTION_ARGS['c']}";
+fi
+
+if [ -n "${OPTIONS['v']}" ]; then fix_version $stdout; fi
+
+if [ ${OPTIONS['i']} ]; then
+    cp $stdout "$1"
+else
+    cat $stdout
+fi
+
+rm $stdout
+
+# vim: set expandtab ts=4 sw=4:

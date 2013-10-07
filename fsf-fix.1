@@ -1,0 +1,25 @@
+.TH "fsf-fix" 1
+.SH NAME
+fsf-fix \- Patch bad addresses to Free Software Foundation.
+
+.SH SYNOPSIS
+.B fsf-fix <file> [files...]
+
+.SH DESCRIPTION
+
+A small sed script which replaces some old variants of the address ot Free
+Software Foundation (fsf) to the actual one.
+
+.SH BUGS
+
+The script fails to replace addresses in some cases depending on linebreaks.
+Substituted text might contain longer lines than the original source.
+
+.SH SEE ALSO
+.TP
+rpmlint(1)
+Static checker which issues warnings about bad fsf addresses.
+
+.TP
+https://github.com/leamas/pkg-scripts
+Source, issue tracker, etc.
