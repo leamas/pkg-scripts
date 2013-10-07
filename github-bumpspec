@@ -13,25 +13,25 @@ Usage:
     Options:
         -g:   Only substitute %global commmit line.
         -c <comment>:
-              Add comment to changelog, defaults to '- rebuilt.'.
+              Add comment to changelog, defaults to '- Rebuilt.'.
         -d <date>:
               Date to use in changelog instead of today's date.
         -n:   Create new changelog entry and  bump release instead
-              of patching last one.
+              of patching last one. Implies -c.
         -v:   Update Version: tag from first found tag matching HEAD.
         -i:   Update spec file in place, don't print on stdout.
 EOF
 }
 
+
 function update_spec()
 {
     local stdout=$1
-    local shortcommit=$( git rev-parse --short HEAD)
+    local shortcommit=$( git rev-parse --short HEAD )
     sed -ri -e '/%changelog/,/^$/ s/\*.*201[0-9]/* '"${OPTION_ARGS['d']}/" \
             -e '/%changelog/,/^$/ s/[.][0-9a-f]{7,8}/.'"$shortcommit/" \
         $stdout
 }
-
 
 
 function add_comment()
@@ -67,12 +67,12 @@ function add_changelog_entry()
 
     local version=$( rpmspec --srpm -q --qf "%{version}" $file )
     local git_user=$( git config 'user.name' )  || {
-    echo "git config user.name not set, aborting" >&2
-    exit 2
+        echo "git config user.name not set, aborting" >&2
+        exit 2
     }
     local git_email=$( git config 'user.email' )  || {
-    echo "git config user.email not set, aborting" >&2
-    exit 2
+        echo "git config user.email not set, aborting" >&2
+        exit 2
     }
     local entry="${OPTION_ARGS['d']} $git_user <$git_email>"
     entry="$entry - $version-$release"
@@ -99,7 +99,7 @@ function fix_version()
 }
 
 
-if [[ "$1" = '-h' || "$1" = '--help' ]]; then usage; exit 0; fi
+if [ "$1" = '--help' ]; then usage; exit 0; fi
 
 declare -A OPTIONS OPTION_ARGS
 for opt in g i n v; do OPTIONS["$opt"]=''; done
@@ -120,10 +120,7 @@ while getopts 'c:d:ghinv' opt; do
 done
 shift $((OPTIND - 1))
 
-if [ $# -ne 1 ]; then
-    usage
-    exit 1
-fi
+if [ $# -ne 1 ]; then usage; exit 1; fi
 
 if [ ! -r "$1" ]; then
     echo "Cannot open $1 for reading, aborting" >&2
