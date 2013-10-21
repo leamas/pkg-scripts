@@ -1,0 +1,104 @@
+.TH gitspec" 1
+.SH NAME
+gitspec \- Update rpmbuild spec file using git data.
+
+.SH SYNOPSIS
+.B gitspec [options] <spec-file> >new-file.spec
+.br
+.B gitspec -i [options] <spec-file>
+.br
+.B gitspec -l <spec-file>
+
+.SH DESCRIPTION
+Simplifies spec file managament when applying the Fedora
+Packaging Guidelines to git-based projects. One basic idea is that it
+should be possible to enter change data in one place instead of
+duplicating it in both git commits and the specfile changelog.
+
+The script is modeled after the "Packaging github source URL" section,
+although this dependency is not that hard.
+.PP
+The script synchronizes three parts of a spec with the git repo: The
+top line with %global commit definition, the Version: tag and the changelog.
+
+The Version: tag is only updated when using -v, see OPTIONS.
+.SH THE %commit DEFINITION.
+The script looks for a line like:
+.IP "" 4
+    %global commit   0123456789abcde0123456789abcdeff01234567
+.PP
+In this line, the full 40-character commit is patched to match HEAD. If no such
+line is found it's silently ignored.
+.SH THE CHANGELOG
+Most changelog options works on the topmost (i. e., latest) entry. The -n
+option adds a new entry.
+.PP
+A typical changelog entry looks like:
+.IP "" 4
+* Thu Oct 10 2013 User name <email@nowhere.net> - 0.9-15.fa1afe1
+.PP
+In this entry, any commit reference ('fa1afe1') above  is replaced with the
+value from HEAD. The date is rewritten as today's date, or the -d option.
+.PP
+Besides the entry, the script can also add change lines based on the git
+commits to the topmost entry.
+Using -l the change lines can be previewed, using -L actually adds those
+lines to the specfile. A typical set of change lines looks like:
+.IP "" 4
+- Add -l create changelog option, new default comment.
+.br
+- Add -L insert changelog from git commits option.
+.br
+- Adding -x option clear last changelog entry.
+.SH OPTIONS
+.TP
+-g:
+Only substitute %global commmit line, don't update changelog.
+.TP
+-c <comment>:
+Add comment line to changelog, defaults to last git commit (subject line)
+when adding a new entry.
+.TP
+-d <date>:
+Date to use in changelog instead of today's date.
+.TP
+-l:
+Make list of changes formatted for a changelog entry based on git log.
+Includes logs after previous changelog entry. The list is based on
+the git commit subject lines with a leading '- '.
+.TP
+-L:
+Insert the list of changes based on git commits as of -l in topmost changelog
+entry.
+.TP
+-n:
+Create new changelog entry and release instead of patching last one.
+Bumps the release number i.  e., the first digit(s) before a '.' in the
+release. A release like 1.fa1afe1 is bumped to 2.123cdef, 1.200.fa1afe1
+becomes 2.200.123cdef. Implies -c. User name and email is taken from
+git configuration user.name and user.email.
+.TP
+-v:
+Update Version: in spec from first git tag pointing to HEAD found. Fails
+if no such git tag can be found.
+.TP
+-i:
+Update spec file in place, don't print on stdout.
+.TP
+-x:
+Clear all change lines in topmost changelog entry which becomes empty. This
+is applied before other operations so -xL does indeed wipe the old and then
+adds the new one.
+
+.SH SEE ALSO
+.TP
+http://fedoraproject.org/wiki/Packaging:SourceURL#Github
+Fedora rules for using github source URL:s.
+.TP
+rpmdev-bumpspec(1)
+Similar tool not based on git. It's possible to use this to bump the release
+and changelog in more elaborated ways and then patch the results using
+gitspec.
+.TP
+https://github.com/leamas/pkg-scripts
+Source, issue tracker, etc.

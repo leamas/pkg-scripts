@@ -1,0 +1,258 @@
+#!/bin/bash
+
+
+function usage()
+{
+    cat << EOF
+Sync spec file with git data. By default updates any '%global commit'
+to match HEAD and first line in changelog to match today's date and short
+commit from HEAD. Print resulting file on stdout.
+
+Usage:
+    $(basename $0) [options] specfile
+
+    Options:
+        -c <comment>:
+              Add comment to changelog, defaults to last commit
+              when adding a new entry (-n).
+        -d <date>:
+              Date to use in changelog instead of today's date.
+        -g:   Only substitute %global commmit line, don't patch
+              changelog.
+        -i:   Update spec file in place, don't print on stdout.
+        -l:   Show git log in changelog format for topmost entry in
+              changelog.
+        -L:   Insert output from -l in topmost changelog entry.
+        -n:   Create new changelog entry and  bump release instead
+              of patching last one.
+        -v:   Update Version: tag from first found git tag matching HEAD.
+        -x:   Kill all change lines in topmost changelog entry (but keep
+              the entry).
+
+EOF
+}
+
+
+function update_changelog_entry()
+# Update date and git hash in topmost changelog entry.
+{
+    local stdout=$1
+    local shortcommit=$( git rev-parse --short HEAD)
+    sed -ri -e '/%changelog/,/^$/ s/\*.*201[0-9]/* '"${OPTION_ARGS['d']}/" \
+            -e '/%changelog/,/^$/ s/[.][0-9a-f]{7,8}/.'"$shortcommit/" \
+        $stdout
+}
+
+
+function git_changelog()
+# Return git log --oneline for dates after $@ formatted as change lines.
+{
+    local date="$*"
+    git log --reverse --after="$date"  --pretty=format:%s  \
+        | awk '{print "- " $0}'
+}
+
+
+function clear_changelog()
+# Remove all change lines form changelog.
+{
+    local file="$1"
+    local tmpspec=$( mktemp )
+    awk ' BEGIN      { entry = 0 }
+          /^[*]/     { entry += 1; print; next }
+          /^$/       { if (entry == 1) print }
+          entry != 1 { print } ' \
+              < $file > $tmpspec && cp $tmpspec $file && rm $tmpspec
+}
+
+
+function insert_git_changelog()
+# Insert git_changelog in topmost changelog entry.
+{
+    local file="$1"; shift
+    local stdout="$1"; shift
+    local prev_date=$( get_last_date $file )
+    local tmpspec=$( mktemp )
+    sed -n '1,/%changelog/ p' < $stdout
+    sed -n '/%changelog/,$ p' < $stdout | (
+        until [[ "$line"  == \** ]]; do read line; done
+        echo "$line"
+        git_changelog "$prev_date"
+        cat -
+    )  > $tmpspec && cp $tmpspec $stdout && rm $tmpspec
+}
+
+
+function add_comment()
+# Add OPTIONS_ARGS['c'] to topmost changelog entry.
+{
+    local file=$1; shift
+    local comment="$*"
+    local tmpfile=$(mktemp)
+    awk   -v comment="$comment" \
+          'BEGIN         { look_for_next = 0
+                           new_comment = comment
+                         }
+          /%changelog/   { look_for_next = 1}
+          /^$/           { if (look_for_next == 1){
+                               printf "- %s\n", new_comment
+                               look_for_next = 0
+                           }
+                         }
+
+          END            { if (look_for_next == 1)
+                               printf "- %s\n", new_comment
+                         }
+                         { print }' \
+             < $file >$tmpfile && cp $tmpfile $file && rm $tmpfile
+}
+
+
+function get_last_date()
+# Return date of second changelog entry counting from top, or
+# first if we are to create a new entry.
+{
+    local specfile="$1"
+    if [ -n $OPTIONS['n']  ]; then
+        sed -n  '/%changelog/I,$ p' < $specfile \
+            | awk '/^[*]/    { printf "%s %s %s %s\n",$2,$3,$4,$5; exit }'
+    else
+        sed -n  '/%changelog/I,$ p' < $specfile \
+            | awk ' BEGIN      { found = 0 }
+                    /^[*]/     { found += 1 }
+                    found >= 1 { printf "%s %s %s %s\n",$2,$3,$4,$5; exit }
+                    END        { if (found == 0) print "Thu Jan 1 1970" }'
+    fi
+}
+
+function get_new_releases()
+#  Return bumped release as a (raw, expanded) pair.
+{
+    local file="$1"; shift
+    local commit=$( git rev-parse --short HEAD )
+    local release=$( rpmspec --srpm --undefine dist \
+                         -q --qf "%{release}" $file )
+    local rel_tag=$( echo $release | sed -r 's/([0-9]+)[.].*/\1/' )
+    release=$( echo $release | sed "s/$rel_tag/$((rel_tag + 1))/")
+    release=$( echo $release | sed -r "s/[0-9a-f]{7}/$commit/" )
+    local raw_rel=$( awk '/Release:/ { gsub(".*[ :]+",""); print }' $file )
+    raw_rel=$( echo $raw_rel | sed "s/$rel_tag/$((rel_tag + 1))/")
+    raw_rel=$( echo $raw_rel | sed -r "s/[0-9a-f]{7}/$commit/" )
+    echo $raw_rel $release
+}
+
+
+function add_changelog_entry()
+# Add a new changelog entry reflecting today's date and git user.
+{
+    local file="$1"; shift
+    local stdout="$1"; shift
+
+    local version=$( rpmspec --srpm -q --qf "%{version}" $file )
+    local new_releases=($( get_new_releases $file ))
+    local git_user=$( git config 'user.name' )  || {
+        echo "git config user.name not set, aborting" >&2
+        exit 2
+    }
+    local git_email=$( git config 'user.email' )  || {
+        echo "git config user.email not set, aborting" >&2
+        exit 2
+    }
+    local entry="${OPTION_ARGS['d']} $git_user <$git_email>"
+    entry="$entry - $version-${new_releases[1]}"
+    local tmpfile=$( mktemp )
+    awk -v entry="$entry" -v release="${new_releases[0]}" \
+        'BEGIN        { IGNORECASE = 1 }
+         /%changelog/ { print
+                        printf "* %s\n\n",entry
+                        next
+                      }
+        /release:/    { gsub("[^:^ ]+$", release); print; next }
+                      { print }' \
+        < $file >$tmpfile && cp  $tmpfile $stdout && rm $tmpfile
+}
+
+
+function fix_version()
+# Replace value of Version: with git tag pointing to HEAD.
+{
+    local file=$1; shift
+    local tag=$( git tag --points-at HEAD )
+    if [[ "$?" -ne 0 || -z "$tag" ]]; then
+        echo "No tag points to HEAD, aborting" >&2
+        exit 1
+    fi
+    sed -ri '/^Version:/s/[^:^ ]+$/'"$tag/I" $file
+}
+
+# Process options and argument. Set global OPTIONS and OPTION_ARGS.
+if [[ "$1" = '-h' || "$1" = '--help' ]]; then usage; exit 0; fi
+
+declare -A OPTIONS OPTION_ARGS
+for opt in g i n v; do OPTIONS["$opt"]=''; done
+OPTION_ARGS['d']=$( LC_TIME=C date +'%a %b %d %Y' )
+OPTION_ARGS['c']=$( git log -1 --pretty=format:%s )
+
+while getopts 'c:d:ghilLnvx' opt; do
+    case "$opt" in
+        'c'|'d'|'g'|'i'|'L'|'l'|'n'|'v'|'x')
+                      OPTIONS["$opt"]=1
+                      OPTION_ARGS["$opt"]="$OPTARG"
+                      ;;
+        'h')          usage; exit 0
+                      ;;
+        *)            usage; exit 1
+                      ;;
+    esac
+done
+shift $((OPTIND - 1))
+
+# Is it OK?
+
+if [ $# -ne 1 ]; then usage; exit 1; fi
+
+if [ ! -r "$1" ]; then
+    echo "Cannot open $1 for reading, aborting" >&2
+    exit 1
+fi
+
+[ -n "$(git status --short -uno)" ] \
+    && echo "Warning: there are uncommitted changes" >&2
+
+
+# Handle what to do.
+
+commit=$( git rev-parse HEAD )
+stdout=$( mktemp )
+cp $1 $stdout
+
+if [ -n "${OPTIONS['l']}" ]; then
+    prev_date=$( get_last_date $1 )
+    git_changelog $prev_date
+    exit 0
+fi
+
+sed -ri '/%global.*commit/s/[0-9a-f]{40}/'"$commit/" $stdout
+if [ "${OPTIONS['v']}" ]; then fix_version $stdout; fi
+[ ${OPTIONS['g']} ] && exit 0
+
+if [ ${OPTIONS['n']} ]; then
+    add_changelog_entry $1 $stdout
+    [ -z "${OPTIONS['x']}${OPTIONS['L']}" ] && OPTIONS['c']=1
+else
+    update_changelog_entry $stdout
+fi
+
+if [ "${OPTIONS['x']}" ]; then clear_changelog $stdout; fi
+if [ "${OPTIONS['L']}" ]; then insert_git_changelog $1 $stdout; fi
+if [ "${OPTIONS['c']}" ]; then add_comment $stdout "${OPTION_ARGS['c']}"; fi
+
+if [ ${OPTIONS['i']} ]; then
+    cp $stdout "$1"
+else
+    cat $stdout
+fi
+
+rm $stdout
+
+# vim: set expandtab ts=4 sw=4:

@@ -1,0 +1,7 @@
+#!/bin/bash
+
+while read patch; do
+    nr=${patch%%-*}
+    nr=$( echo $nr | sed -r 's/^0*//' )
+    echo "Patch${nr}:    $patch"
+done

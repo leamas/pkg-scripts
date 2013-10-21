@@ -1,0 +1,25 @@
+.TH "rpm-link-sources" 8
+.SH NAME
+rpm-link-sources \- Link files to rpmbuild source directory.
+
+.SH SYNOPSIS
+.B rpm-link-sources [-s] <file> [files...]
+
+.SH DESCRIPTION
+
+Small script which links all arguments to the rpmbuild source directory
+(normally ~/rpmbuild/SOURCES).
+
+.SH OPTIONS
+.TP
+\-s
+Symlink files (default: hardlink).
+
+.SH SEE ALSO
+.TP
+rpmbuild(8)
+Tool defining the ~/rpmbuild directory structure.
+
+.TP
+https://github.com/leamas/pkg-scripts
+Source, issue tracker, etc.

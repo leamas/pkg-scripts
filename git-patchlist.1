@@ -1,0 +1,35 @@
+.TH "git-patchlist" 1
+.SH NAME
+git-patchlist \- Display  list of spec file patches from git patches
+
+.SH SYNOPSIS
+.B  ls *.patch | git-patchlist
+.br
+.B  git format-patch <options> | git-patchlist
+
+.SH DESCRIPTION
+
+Small filter converting  a list of git patches on stdin to a list of
+rpm specfile patches.
+
+.SH EXAMPLE
+Given the three files 001-dummy-patch-1.patch, 002-dummy-patch-2.patch
+and 003-dummy-patch-3.patch in current dir we get:
+.IP
+$ ls *.patch | git-patchlist
+.br
+Patch1:   001-dummy-patch-1.patch
+.br
+Patch2:   002-dummy-patch-2.patch
+.br
+Patch3:   003-dummy-patch-3.patch
+
+.SH SEE ALSO
+.TP
+git-format-patch(1)
+git-patchlist assumes numbered patches as produced by git-format-patch with
+default options.
+
+.TP
+https://github.com/leamas/pkg-scripts
+Source, issue tracker, etc.
