@@ -9,7 +9,14 @@ to match HEAD and first line in changelog to match today's date and short
 commit from HEAD. Print resulting file on stdout.
 
 Usage:
-    $(basename $0) [options] specfile
+    $(basename $0) [options] <specfile> [git repository]
+
+    <specfile>:
+         rpmbuild spec file.
+
+    [git repository]:
+         Repository with data feeding the specfile, must contain a .git
+         directory. Defaults to current directory.
 
     Options:
         -c <comment>:
@@ -25,6 +32,8 @@ Usage:
         -L:   Insert output from -l in topmost changelog entry.
         -n:   Create new changelog entry and  bump release instead
               of patching last one.
+        -r:   Bump trailing (i. e., rightmost) digit(s) in release,
+              add .1 if none found.
         -v:   Update Version: tag from first found git tag matching HEAD.
         -x:   Kill all change lines in topmost changelog entry (but keep
               the entry).
@@ -128,17 +137,36 @@ function get_last_date()
 function get_new_releases()
 #  Return bumped release as a (raw, expanded) pair.
 {
+set -x
     local file="$1"; shift
     local commit=$( git rev-parse --short HEAD )
     local release=$( rpmspec --srpm --undefine dist \
                          -q --qf "%{release}" $file )
-    local rel_tag=$( echo $release | sed -r 's/([0-9]+)[.].*/\1/' )
-    release=$( echo $release | sed "s/$rel_tag/$((rel_tag + 1))/")
-    release=$( echo $release | sed -r "s/[0-9a-f]{7}/$commit/" )
     local raw_rel=$( awk '/Release:/ { gsub(".*[ :]+",""); print }' $file )
-    raw_rel=$( echo $raw_rel | sed "s/$rel_tag/$((rel_tag + 1))/")
-    raw_rel=$( echo $raw_rel | sed -r "s/[0-9a-f]{7}/$commit/" )
+    if [ ${OPTIONS['r']} ]; then
+        local rel_tag=$( echo $release | sed  -nr '/[.][0-9]+$/s/.*[.]//p' )
+        if [ "$rel_tag" = ""  ]; then
+             release=${release}.1
+             raw_rel=${raw_rel}.1
+        else
+             release=${release%.*}$((rel_tag + 1))
+             raw_rel=${raw_rel%.*}$((rel_tag + 1))
+        fi
+    else
+        local rel_tag=$( echo $release |
+                             sed  -nr -e 's/[.].*//' -e '/^[0-9]+/p')
+        if [ "$rel_tag" = ""  ]; then
+             release=1.fffffff.${release}
+             raw_rel=1.fffffff.${raw_rel}
+        else
+             release=$((rel_tag + 1)).${release#$rel_tag}
+             raw_rel=$((rel_tag + 1)).${raw_rel#$rel_tag}
+        fi
+    fi
+    release=$( echo ${release%.} | sed -r "s/[0-9a-f]{7}/$commit/" )
+    raw_rel=$( echo ${raw_rel%.} | sed -r "s/[0-9a-f]{7}/$commit/" )
     echo $raw_rel $release
+set +x
 }
 
 
@@ -193,9 +221,9 @@ for opt in g i n v; do OPTIONS["$opt"]=''; done
 OPTION_ARGS['d']=$( LC_TIME=C date +'%a %b %d %Y' )
 OPTION_ARGS['c']=$( git log -1 --pretty=format:%s )
 
-while getopts 'c:d:ghilLnvx' opt; do
+while getopts 'c:d:ghilLnrvx' opt; do
     case "$opt" in
-        'c'|'d'|'g'|'i'|'L'|'l'|'n'|'v'|'x')
+        'c'|'d'|'g'|'i'|'L'|'l'|'n'|'r'|'v'|'x')
                       OPTIONS["$opt"]=1
                       OPTION_ARGS["$opt"]="$OPTARG"
                       ;;
@@ -209,18 +237,25 @@ shift $((OPTIND - 1))
 
 # Is it OK?
 
-if [ $# -ne 1 ]; then usage; exit 1; fi
+if [ $# = 0 -o $# -gt 2 ]; then usage; exit 1; fi
 
 if [ ! -r "$1" ]; then
     echo "Cannot open $1 for reading, aborting" >&2
     exit 1
 fi
 
-[ -n "$(git status --short -uno)" ] \
+repo=${2:-$PWD}/.git
+[ -d $repo ] || {
+    "Cannot find git repo $repo, aborting"
+    exit 2;
+}
+
+[ -n "$(git --git-dir=$repo status --short -uno)" ] \
     && echo "Warning: there are uncommitted changes" >&2
 
 
 # Handle what to do.
+export GIT_DIR=$repo
 
 commit=$( git rev-parse HEAD )
 stdout=$( mktemp )

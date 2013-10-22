@@ -3,20 +3,19 @@
 gitspec \- Update rpmbuild spec file using git data.
 
 .SH SYNOPSIS
-.B gitspec [options] <spec-file> >new-file.spec
+.B gitspec [options] <spec-file> [git repo] >new-file.spec
 .br
-.B gitspec -i [options] <spec-file>
+.B gitspec -i [options] <spec-file> [git repo]
 .br
-.B gitspec -l <spec-file>
+.B gitspec -l <spec-file> [git repo]
 
 .SH DESCRIPTION
-Simplifies spec file managament when applying the Fedora
-Packaging Guidelines to git-based projects. One basic idea is that it
-should be possible to enter change data in one place instead of
+Updates a rpmbuild spec file with data from git repo.  One basic idea is
+that it should be possible to enter change data in one place instead of
 duplicating it in both git commits and the specfile changelog.
-
-The script is modeled after the "Packaging github source URL" section,
-although this dependency is not that hard.
+.PP
+The script is modeled after the "Packaging github source URL" section in
+the Fedora Packagin Guidelines although this dependency is not that hard.
 .PP
 The script synchronizes three parts of a spec with the git repo: The
 top line with %global commit definition, the Version: tag and the changelog.
@@ -50,6 +49,14 @@ lines to the specfile. A typical set of change lines looks like:
 - Add -L insert changelog from git commits option.
 .br
 - Adding -x option clear last changelog entry.
+.SH ARGUMENTS
+.TP
+specfile
+rpmbuild spec file.
+.TP
+git repo
+Git repository, source for information patched into the specfile. Must
+contain a .git directory. Defaults to current directory.
 .SH OPTIONS
 .TP
 -g:
