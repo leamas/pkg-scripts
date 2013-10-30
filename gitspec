@@ -137,7 +137,6 @@ function get_last_date()
 function get_new_releases()
 #  Return bumped release as a (raw, expanded) pair.
 {
-set -x
     local file="$1"; shift
     local commit=$( git rev-parse --short HEAD )
     local release=$( rpmspec --srpm --undefine dist \
@@ -166,7 +165,6 @@ set -x
     release=$( echo ${release%.} | sed -r "s/[0-9a-f]{7}/$commit/" )
     raw_rel=$( echo ${raw_rel%.} | sed -r "s/[0-9a-f]{7}/$commit/" )
     echo $raw_rel $release
-set +x
 }
 
 
