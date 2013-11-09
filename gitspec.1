@@ -8,11 +8,15 @@ gitspec \- Update rpmbuild spec file using git data.
 .B gitspec -i [options] <spec-file> [git repo]
 .br
 .B gitspec -l <spec-file> [git repo]
+.br
+.B gitspec -t <spec-file> [git repo]
+
 
 .SH DESCRIPTION
 Updates a rpmbuild spec file with data from git repo.  One basic idea is
 that it should be possible to enter change data in one place instead of
-duplicating it in both git commits and the specfile changelog.
+duplicating it in both git commits and the specfile changelog. gitspec
+can also produce a github-compatible tarball from the git repo.
 .PP
 The script is modeled after the "Packaging github source URL" section in
 the Fedora Packagin Guidelines although this dependency is not that hard.
@@ -84,6 +88,12 @@ Bumps the release number i.  e., the first digit(s) before a '.' in the
 release. A release like 1.fa1afe1 is bumped to 2.123cdef, 1.200.fa1afe1
 becomes 2.200.123cdef. Implies -c. User name and email is taken from
 git configuration user.name and user.email.
+.TP
+-t:
+Create a github-compatible tarball. The name of the tarball is
+$pkg-$version-$commit.tar.gz e. g., lpf-0-fa1afe1.tar.gz. The prefix inside
+the tarball is $pkg-$commit, $pkg being the package name and $commit the
+full 40-character HEAD hash.  Cannot be combined with other options.
 .TP
 -v:
 Update Version: in spec from first git tag pointing to HEAD found. Fails

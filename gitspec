@@ -34,9 +34,11 @@ Usage:
               of patching last one.
         -r:   Bump trailing (i. e., rightmost) digit(s) in release,
               add .1 if none found.
+        -t:   Create tarball
         -v:   Update Version: tag from first found git tag matching HEAD.
         -x:   Kill all change lines in topmost changelog entry (but keep
               the entry).
+        -t:   Create tarball
 
 EOF
 }
@@ -198,6 +200,18 @@ function add_changelog_entry()
         < $file >$tmpfile && cp  $tmpfile $stdout && rm $tmpfile
 }
 
+function make_tarball()
+# Create a tarball as defined in packaging GL.
+{
+    local stdout="$1"; shift
+    local pkg=$1; shift
+    local commit=$1; shift
+    local version=$( rpmspec --srpm -q --qf "%{version}" $stdout )
+    git archive --prefix $pkg-$commit/ \
+                -o $pkg-$version-${commit:0:7}.tar.gz \
+                HEAD
+    rm $stdout
+}
 
 function fix_version()
 # Replace value of Version: with git tag pointing to HEAD.
@@ -219,9 +233,9 @@ for opt in g i n v; do OPTIONS["$opt"]=''; done
 OPTION_ARGS['d']=$( LC_TIME=C date +'%a %b %d %Y' )
 OPTION_ARGS['c']=$( git log -1 --pretty=format:%s )
 
-while getopts 'c:d:ghilLnrvx' opt; do
+while getopts 'c:d:ghilLnrtvx' opt; do
     case "$opt" in
-        'c'|'d'|'g'|'i'|'L'|'l'|'n'|'r'|'v'|'x')
+        'c'|'d'|'g'|'i'|'L'|'l'|'n'|'r'|'t'|'v'|'x')
                       OPTIONS["$opt"]=1
                       OPTION_ARGS["$opt"]="$OPTARG"
                       ;;
@@ -256,7 +270,9 @@ repo=${2:-$PWD}/.git
 export GIT_DIR=$repo
 
 commit=$( git rev-parse HEAD )
+pkg=${1%.spec}
 stdout=$( mktemp )
+
 cp $1 $stdout
 
 if [ -n "${OPTIONS['l']}" ]; then
@@ -265,9 +281,14 @@ if [ -n "${OPTIONS['l']}" ]; then
     exit 0
 fi
 
+if [ "${OPTIONS['t']}" ]; then
+    make_tarball $stdout $pkg $commit;
+    exit $?
+fi
+
 sed -ri '/%global.*commit/s/[0-9a-f]{40}/'"$commit/" $stdout
 if [ "${OPTIONS['v']}" ]; then fix_version $stdout; fi
-[ ${OPTIONS['g']} ] && exit 0
+[ ${OPTIONS['g']} ] && { rm $stdout; exit 0; }
 
 if [ ${OPTIONS['n']} ]; then
     add_changelog_entry $1 $stdout
@@ -285,7 +306,6 @@ if [ ${OPTIONS['i']} ]; then
 else
     cat $stdout
 fi
-
 rm $stdout
 
 # vim: set expandtab ts=4 sw=4:
