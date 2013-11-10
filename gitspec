@@ -160,8 +160,8 @@ function get_new_releases()
              release=1.fffffff.${release}
              raw_rel=1.fffffff.${raw_rel}
         else
-             release=$((rel_tag + 1)).${release#$rel_tag}
-             raw_rel=$((rel_tag + 1)).${raw_rel#$rel_tag}
+             release=$((rel_tag + 1))${release#$rel_tag}
+             raw_rel=$((rel_tag + 1))${raw_rel#$rel_tag}
         fi
     fi
     release=$( echo ${release%.} | sed -r "s/[0-9a-f]{7}/$commit/" )
