@@ -273,13 +273,13 @@ commit=$( git rev-parse HEAD )
 pkg=${1%.spec}
 stdout=$( mktemp )
 
-cp $1 $stdout
-
 if [ -n "${OPTIONS['l']}" ]; then
     prev_date=$( get_last_date $1 )
     git_changelog $prev_date
     exit 0
 fi
+
+cp $1 $stdout
 
 if [ "${OPTIONS['t']}" ]; then
     make_tarball $stdout $pkg $commit;
