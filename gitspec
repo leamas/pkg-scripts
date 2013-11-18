@@ -256,18 +256,18 @@ if [ ! -r "$1" ]; then
     exit 1
 fi
 
-repo=${2:-$PWD}/.git
-[ -d $repo ] || {
-    "Cannot find git repo $repo, aborting"
+repo=${2:-$PWD}
+[ -d $repo/.git ] || {
+    "Cannot find git repo $repo/.git, aborting"
     exit 2;
 }
 
-[ -n "$(git --git-dir=$repo status --short -uno)" ] \
+[ -n "$( cd $repo; git status --short -uno )" ] \
     && echo "Warning: there are uncommitted changes" >&2
 
 
 # Handle what to do.
-export GIT_DIR=$repo
+export GIT_DIR=$repo/.git
 
 commit=$( git rev-parse HEAD )
 pkg=${1%.spec}
