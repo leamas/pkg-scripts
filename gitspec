@@ -286,7 +286,7 @@ if [ "${OPTIONS['t']}" ]; then
     exit $?
 fi
 
-if [ -n ${OPTIONS['n']} ]; then
+if [ "${OPTIONS['n']}" ]; then
     add_changelog_entry $1 $stdout
     [ -z "${OPTIONS['x']}${OPTIONS['L']}" ] && OPTIONS['c']=1
 fi
@@ -295,7 +295,7 @@ sed -ri '/%global.*commit/s/[0-9a-f]{40}/'"$commit/" $stdout
 if [ "${OPTIONS['v']}" ]; then fix_version $stdout; fi
 [ ${OPTIONS['g']} ] && { rm $stdout; exit 0; }
 
-if [ -z ${OPTIONS['n']} ]; then
+if [ -z "${OPTIONS['n']}" ]; then
     update_changelog_entry $stdout
 fi
 
