@@ -22,16 +22,19 @@ The script is modeled after the "Packaging github source URL" section in
 the Fedora Packagin Guidelines although this dependency is not that hard.
 .PP
 The script synchronizes three parts of a spec with the git repo: The
-top line with %global commit definition, the Version: tag and the changelog.
+top line with %global commit and %global gittdate definitions, the
+Version: tag and the changelog.
 
 The Version: tag is only updated when using -v, see OPTIONS.
-.SH THE %commit DEFINITION.
+.SH THE %commit  and %gitdate DEFINITIONS.
 The script looks for a line like:
 .IP "" 4
     %global commit   0123456789abcde0123456789abcdeff01234567
+    %global gitdate   20140116
 .PP
 In this line, the full 40-character commit is patched to match HEAD. If no such
-line is found it's silently ignored.
+line is found it's silently ignored. gitdate is patched to match the HEAD
+commitdate.
 .SH THE CHANGELOG
 Most changelog options works on the topmost (i. e., latest) entry. The -n
 option adds a new entry.

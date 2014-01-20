@@ -5,8 +5,8 @@ function usage()
 {
     cat << EOF
 Sync spec file with git data. By default updates any '%global commit'
-to match HEAD and first line in changelog to match today's date and short
-commit from HEAD. Print resulting file on stdout.
+and '%global gitdate' to match HEAD and first line in changelog to match
+today's date and short commit from HEAD. Print resulting file on stdout.
 
 Usage:
     $(basename $0) [options] <specfile> [git repository]
@@ -270,6 +270,7 @@ repo=${2:-$PWD}
 export GIT_DIR=$repo/.git
 
 commit=$( git rev-parse HEAD )
+gitdate=$( git log -1 --pretty=format:%ci | cut -d ' ' -f1 | tr -d )
 pkg=${1%.spec}
 stdout=$( mktemp )
 
@@ -292,6 +293,7 @@ if [ "${OPTIONS['n']}" ]; then
 fi
 
 sed -ri '/%global.*commit/s/[0-9a-f]{40}/'"$commit/" $stdout
+sed -ri '/%global.*gitdate/s/[0-9]{8}/'"$gitdate/" $stdout
 if [ "${OPTIONS['v']}" ]; then fix_version $stdout; fi
 [ ${OPTIONS['g']} ] && { rm $stdout; exit 0; }
 
