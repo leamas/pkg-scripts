@@ -48,9 +48,11 @@ function update_changelog_entry()
 # Update date and git hash in topmost changelog entry.
 {
     local stdout=$1
-    local shortcommit=$( git rev-parse --short HEAD)
-    sed -ri -e '/%changelog/,/^$/ s/\*.*201[0-9]/* '"${OPTION_ARGS['d']}/" \
-            -e '/%changelog/,/^$/ s/[.][0-9a-f]{7,8}/.'"$shortcommit/" \
+    local shortcommit=$( git rev-parse --short HEAD )
+    sed -ri \
+        -e '/%changelog/,/^$/ s/\((git|[.])\)[0-9a-f]{7,8}/\1'"$shortcommit/" \
+        -e '/%changelog/,/^$/ s/[0-9a-f]{7,8}git/'"${GITDATE}git/"            \
+        -e '/%changelog/,/^$/ s/^\*.*201[0-9] /*'" ${OPTION_ARGS['d']} /"     \
         $stdout
 }
 
@@ -230,8 +232,6 @@ if [[ "$1" = '-h' || "$1" = '--help' ]]; then usage; exit 0; fi
 
 declare -A OPTIONS OPTION_ARGS
 for opt in g i n v; do OPTIONS["$opt"]=''; done
-OPTION_ARGS['d']=$( LC_TIME=C date +'%a %b %d %Y' )
-OPTION_ARGS['c']=$( git log -1 --pretty=format:%s )
 
 while getopts 'c:d:ghilLnrtvx' opt; do
     case "$opt" in
@@ -264,13 +264,18 @@ repo=${2:-$PWD}
 
 [ -n "$( cd $repo; git status --short -uno )" ] \
     && echo "Warning: there are uncommitted changes" >&2
+export GIT_DIR=$repo/.git
+
+
+[ "${OPTION_ARGS['d']}" ] || \
+    OPTION_ARGS['d']=$( LC_TIME=C date +'%a %b %d %Y' )
+[ "${OPTION_ARGS['c']}" ] || \
+    OPTION_ARGS['c']=$( git log -1 --pretty=format:%s )
 
 
 # Handle what to do.
-export GIT_DIR=$repo/.git
-
 commit=$( git rev-parse HEAD )
-gitdate=$( git log -1 --pretty=format:%ci | cut -d ' ' -f1 | tr -d )
+GITDATE=$( git log -1 --pretty=format:%ci | cut -d ' ' -f1 | tr -d  -- '-' )
 pkg=${1%.spec}
 stdout=$( mktemp )
 
@@ -293,9 +298,17 @@ if [ "${OPTIONS['n']}" ]; then
 fi
 
 sed -ri '/%global.*commit/s/[0-9a-f]{40}/'"$commit/" $stdout
-sed -ri '/%global.*gitdate/s/[0-9]{8}/'"$gitdate/" $stdout
+sed -ri '/%global.*gitdate/s/[0-9]{8}/'"$GITDATE/" $stdout
 if [ "${OPTIONS['v']}" ]; then fix_version $stdout; fi
-[ ${OPTIONS['g']} ] && { rm $stdout; exit 0; }
+[ ${OPTIONS['g']} ] && {
+    if [ ${OPTIONS['i']} ]; then
+        cp $stdout "$1"
+    else
+        cat $stdout
+    fi
+    rm $stdout
+    exit 0
+}
 
 if [ -z "${OPTIONS['n']}" ]; then
     update_changelog_entry $stdout
